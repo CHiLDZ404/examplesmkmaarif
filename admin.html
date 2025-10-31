@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin - SMK MA'ARIF NU</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="favicon.ico">
+</head>
+<body>
+<div class="container">
+<header>
+  <div class="header-inner">
+    <div class="brand"><div class="logo">SMK</div><div><strong>Panel Admin</strong><div class="small muted">Masuk untuk mengelola PPDB</div></div></div>
+    <nav class="desktop"><a href="index.html">Beranda</a><a href="ppdb.html">PPDB</a><a href="gallery.html">Galeri</a><a href="admin.html">Admin</a></nav>
+  </div>
+</header>
+
+<section class="card">
+  <div id="loginBox">
+    <form id="adminLogin" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <input id="adminUser" type="text" placeholder="Username" style="flex:1;min-width:160px" required>
+      <input id="adminPass" type="password" placeholder="Password" style="flex:1;min-width:160px" required>
+      <div style="display:flex;gap:8px">
+        <button type="submit" class="btn">Masuk</button>
+      </div>
+    </form>
+    <div id="loginMsg" class="small muted" style="margin-top:8px"></div>
+  </div>
+
+  <div id="dashboard" class="admin-panel" style="margin-top:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div><strong>Dashboard Admin</strong><div class="small muted">Lihat pendaftar dan unduh file</div></div>
+      <div style="display:flex;gap:8px"><button id="exportJson" class="btn ghost">Export JSON</button><button id="logout" class="btn">Logout</button></div>
+    </div>
+    <div style="overflow:auto;max-height:420px;margin-top:12px">
+      <table id="appsTable"><thead><tr><th>#</th><th>Nama</th><th>Jurusan</th><th>Kontak</th><th>Tanggal</th><th>Files</th><th>Aksi</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+</section>
+
+<footer class="small muted">© <span id="year"></span> SMK MA'ARIF NU BANJARSARI</footer>
+</div>
+
+<script src="script.js"></script>
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+const adminLogin = document.getElementById('adminLogin');
+const loginMsg = document.getElementById('loginMsg');
+const dashboard = document.getElementById('dashboard');
+const appsTableBody = document.querySelector('#appsTable tbody');
+const logoutBtn = document.getElementById('logout');
+const exportJsonBtn = document.getElementById('exportJson');
+
+adminLogin.addEventListener('submit', function(e){
+  e.preventDefault();
+  const user = document.getElementById('adminUser').value.trim();
+  const pass = document.getElementById('adminPass').value.trim();
+  if(user==='admin' && pass==='12345'){
+    loginMsg.textContent = 'Login berhasil';
+    dashboard.classList.add('open');
+    document.getElementById('loginBox').style.display='none';
+    refreshAdminList();
+  } else loginMsg.textContent = 'Username atau password salah.';
+});
+
+logoutBtn && logoutBtn.addEventListener('click', function(){
+  dashboard.classList.remove('open');
+  document.getElementById('loginBox').style.display='block';
+  loginMsg.textContent = 'Anda telah logout.';
+});
+
+async function refreshAdminList(){
+  try{
+    const apps = await DB.getAllApps();
+    const files = await DB.getAllFiles();
+    apps.sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt));
+    appsTableBody.innerHTML='';
+    apps.forEach((app, idx)=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML = `<td>${idx+1}</td><td>${escapeHtml(app.nama)}<div class="small muted">${escapeHtml(app.email||'')}</div></td><td>${escapeHtml(app.jurusan)}</td><td class="small">${escapeHtml(app.phone||'—')}</td><td class="small">${new Date(app.createdAt).toLocaleString()}</td><td></td><td></td>`;
+      const filesTd = tr.children[5];
+      const fForApp = files.filter(f=>f.applicationId==app.id);
+      if(fForApp.length){
+        fForApp.forEach(f=>{
+          try{ const url = URL.createObjectURL(f.blob); const a=document.createElement('a'); a.href=url; a.textContent=f.name; a.target='_blank'; a.className='pill'; a.style.marginRight='6px'; filesTd.appendChild(a); }catch(err){ const span=document.createElement('span'); span.className='pill'; span.textContent=f.name; span.style.marginRight='6px'; filesTd.appendChild(span); }
+        });
+      } else filesTd.textContent='-';
+      const actTd = tr.children[6];
+      const delBtn=document.createElement('button'); delBtn.className='btn ghost'; delBtn.textContent='Hapus';
+      delBtn.addEventListener('click', async ()=>{ if(confirm('Hapus pendaftar ini?')){ await DB.deleteApp(app.id); refreshAdminList(); }});
+      actTd.appendChild(delBtn);
+      appsTableBody.appendChild(tr);
+    });
+  }catch(err){ console.error(err); }
+}
+
+// Export JSON
+exportJsonBtn && exportJsonBtn.addEventListener('click', async ()=>{
+  const apps = await DB.getAllApps();
+  const blob = new Blob([JSON.stringify(apps,null,2)],{type:'application/json'});
+  const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='ppdb-applications.json'; a.click(); URL.revokeObjectURL(url);
+});
+
+// helper
+function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>
